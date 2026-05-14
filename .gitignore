@@ -1,8 +1,24 @@
-node_modules
-venv
-.env
-__pycache__
-dist
-build
+# Python
+venv/
+__pycache__/
+*.pyc
+
+# Logs
+logs/
+
+# AI model weights
 *.pt
-*.pth
+
+# Node
+node_modules/
+
+# Build folders
+dist/
+build/
+
+# Environment files
+.env
+
+# OS
+.DS_Store
+Thumbs.db
