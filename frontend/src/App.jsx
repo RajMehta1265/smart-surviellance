@@ -74,6 +74,25 @@ function App() {
 
       <h1>AI Smart Surveillance Dashboard</h1>
 
+      <h2>Live Camera Feed</h2>
+
+      <div
+        style={{
+          marginBottom: "20px"
+        }}
+      >
+
+        <img
+          src="http://127.0.0.1:8000/video_feed"
+          alt="Live Feed"
+          width="800"
+          style={{
+            border: "3px solid black"
+          }}
+        />
+
+      </div>
+
       {/* ========================= */}
       {/* LIVE ALERTS */}
       {/* ========================= */}
