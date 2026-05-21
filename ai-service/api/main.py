@@ -1,30 +1,26 @@
 from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import (
-    FileResponse,
-    StreamingResponse
-)
+from fastapi.responses import FileResponse, StreamingResponse
 
 import cv2
 import os
 import asyncio
 import time
+import requests
 
 from datetime import datetime
-
 from ultralytics import YOLO
 
 from api.websocket_manager import manager
 
-# ==========================================
-# CREATE FASTAPI APP
-# ==========================================
+# =========================================================
+# FASTAPI APP
+# =========================================================
 app = FastAPI()
 
-# ==========================================
-# ENABLE CORS
-# Allows frontend to access backend APIs
-# ==========================================
+# =========================================================
+# CORS
+# =========================================================
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -33,54 +29,53 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ==========================================
-# LOAD YOLO MODEL
-# ==========================================
+# =========================================================
+# YOLO MODEL
+# =========================================================
 model = YOLO("yolov8n.pt")
 
-# ==========================================
-# OPEN CAMERA
-# ==========================================
+# =========================================================
+# CAMERA
+# =========================================================
 camera = cv2.VideoCapture(0)
 
-# ==========================================
-# CREATE REQUIRED FOLDERS
-# ==========================================
+# =========================================================
+# FOLDERS
+# =========================================================
 os.makedirs("snapshots", exist_ok=True)
 os.makedirs("logs", exist_ok=True)
 
-# ==========================================
+# =========================================================
 # RESTRICTED ZONE
-# ==========================================
+# =========================================================
 ZONE_X1 = 200
 ZONE_Y1 = 100
 ZONE_X2 = 500
 ZONE_Y2 = 400
 
-# ==========================================
-# ALERT TRACKING
-# Prevent repeated alerts
-# ==========================================
+# =========================================================
+# ALERT TRACKER
+# =========================================================
 alerted_ids = set()
 
-# ==========================================
-# EVENT LOG FILE
-# ==========================================
+# =========================================================
+# LOG FILE
+# =========================================================
 log_file = "logs/events.txt"
 
-# ==========================================
-# HOME ROUTE
-# ==========================================
+# =========================================================
+# HOME
+# =========================================================
 @app.get("/")
 def home():
 
     return {
-        "message": "AI Smart Surveillance Backend Running"
+        "message": "AI Surveillance Running"
     }
 
-# ==========================================
-# HEALTH CHECK
-# ==========================================
+# =========================================================
+# HEALTH
+# =========================================================
 @app.get("/health")
 def health():
 
@@ -88,95 +83,35 @@ def health():
         "status": "healthy"
     }
 
-# ==========================================
-# GET EVENT LOGS
-# ==========================================
-@app.get("/events")
-def get_events():
-
-    if not os.path.exists(log_file):
-
-        return {
-            "events": []
-        }
-
-    with open(log_file, "r") as f:
-        events = f.readlines()
-
-    return {
-        "events": events
-    }
-
-# ==========================================
-# GET SNAPSHOT FILES
-# ==========================================
-@app.get("/snapshots")
-def get_snapshots():
-
-    files = os.listdir("snapshots")
-
-    return {
-        "snapshots": files
-    }
-
-# ==========================================
-# GET SINGLE SNAPSHOT
-# ==========================================
-@app.get("/snapshot/{image_name}")
-def get_snapshot(image_name: str):
-
-    image_path = os.path.join(
-        "snapshots",
-        image_name
-    )
-
-    if os.path.exists(image_path):
-
-        return FileResponse(image_path)
-
-    return {
-        "error": "Image not found"
-    }
-
-# ==========================================
-# WEBSOCKET ENDPOINT
-# ==========================================
+# =========================================================
+# WEBSOCKET
+# =========================================================
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
 
     await manager.connect(websocket)
-
-    print("WebSocket client connected")
 
     try:
 
         while True:
             await asyncio.sleep(1)
 
-    except Exception as e:
-
-        print("WebSocket disconnected:", e)
+    except Exception:
 
         manager.disconnect(websocket)
 
-# ==========================================
-# VIDEO + AI PIPELINE
-# ==========================================
+# =========================================================
+# VIDEO PIPELINE
+# =========================================================
 def generate_frames():
 
     while True:
 
-        # ==========================================
-        # READ CAMERA FRAME
-        # ==========================================
         success, frame = camera.read()
 
         if not success:
             break
 
-        # ==========================================
-        # RUN YOLO TRACKING
-        # ==========================================
         results = model.track(
             frame,
             persist=True,
@@ -185,14 +120,11 @@ def generate_frames():
             conf=0.5
         )
 
-        # ==========================================
-        # DRAW DETECTIONS
-        # ==========================================
         annotated_frame = results[0].plot()
 
-        # ==========================================
-        # DRAW RESTRICTED ZONE
-        # ==========================================
+        # =========================================================
+        # RESTRICTED ZONE
+        # =========================================================
         cv2.rectangle(
             annotated_frame,
             (ZONE_X1, ZONE_Y1),
@@ -201,50 +133,25 @@ def generate_frames():
             3
         )
 
-        cv2.putText(
-            annotated_frame,
-            "RESTRICTED ZONE",
-            (ZONE_X1, ZONE_Y1 - 10),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.8,
-            (0, 0, 255),
-            2
-        )
-
-        # ==========================================
-        # GET DETECTION BOXES
-        # ==========================================
         boxes = results[0].boxes
 
         if boxes.id is not None:
 
             ids = boxes.id.cpu().numpy().astype(int)
-
             xyxy = boxes.xyxy.cpu().numpy()
 
-            for box, track_id in zip(xyxy, ids):
+            for i, (box, track_id) in enumerate(zip(xyxy, ids)):
 
                 x1, y1, x2, y2 = map(int, box)
 
-                # ==========================================
-                # CENTER POINT
-                # ==========================================
-                center_x = int((x1 + x2) / 2)
+                cls_id = int(boxes.cls[i].item())
+                confidence = float(boxes.conf[i].item())
 
+                label = model.names[cls_id]
+
+                center_x = int((x1 + x2) / 2)
                 center_y = int((y1 + y2) / 2)
 
-                # Draw center point
-                cv2.circle(
-                    annotated_frame,
-                    (center_x, center_y),
-                    5,
-                    (255, 0, 0),
-                    -1
-                )
-
-                # ==========================================
-                # CHECK INTRUSION
-                # ==========================================
                 inside_zone = (
                     ZONE_X1 < center_x < ZONE_X2 and
                     ZONE_Y1 < center_y < ZONE_Y2
@@ -252,34 +159,24 @@ def generate_frames():
 
                 if inside_zone:
 
-                    # Draw intrusion alert
                     cv2.putText(
                         annotated_frame,
-                        f"INTRUSION: ID {track_id}",
+                        f"{label} {confidence:.2f}",
                         (x1, y1 - 20),
                         cv2.FONT_HERSHEY_SIMPLEX,
-                        0.8,
-                        (0, 0, 255),
+                        0.7,
+                        (0, 255, 255),
                         2
                     )
 
-                    # ==========================================
-                    # PREVENT DUPLICATE ALERTS
-                    # ==========================================
                     if track_id not in alerted_ids:
 
                         alerted_ids.add(track_id)
 
-                        # ==========================================
-                        # TIMESTAMP
-                        # ==========================================
                         timestamp = datetime.now().strftime(
                             "%Y-%m-%d %H:%M:%S"
                         )
 
-                        # ==========================================
-                        # SNAPSHOT FILE
-                        # ==========================================
                         image_name = (
                             f"intrusion_{track_id}_{int(time.time())}.jpg"
                         )
@@ -289,56 +186,52 @@ def generate_frames():
                             image_name
                         )
 
-                        # Save snapshot
                         cv2.imwrite(
                             image_path,
                             annotated_frame
                         )
 
-                        # ==========================================
-                        # EVENT MESSAGE
-                        # ==========================================
-                        event_message = (
-                            f"[{timestamp}] "
-                            f"INTRUSION DETECTED | "
-                            f"Person ID: {track_id} | "
-                            f"Snapshot: {image_name}"
-                        )
+                        # =========================================================
+                        # SEND TO NODE BACKEND
+                        # =========================================================
+                        try:
 
-                        print(event_message)
+                            response = requests.post(
+                                "http://localhost:5001/api/alerts",
+                                json={
+                                    "label": label,
+                                    "confidence": round(confidence, 2),
+                                    "person_id": int(track_id),
+                                    "timestamp": timestamp,
+                                    "snapshot": image_name
+                                }
+                            )
 
-                        # ==========================================
-                        # SAVE LOG
-                        # ==========================================
-                        with open(log_file, "a") as f:
-                            f.write(event_message + "\n")
+                            print(
+                                "Alert Sent:",
+                                response.status_code
+                            )
 
-                        # ==========================================
-                        # WEBSOCKET ALERT DATA
-                        # ==========================================
+                        except Exception as e:
+
+                            print("Backend Error:", e)
+
+                        # =========================================================
+                        # WEBSOCKET
+                        # =========================================================
                         alert_data = {
                             "event": "intrusion",
+                            "label": label,
+                            "confidence": round(confidence, 2),
                             "person_id": int(track_id),
                             "timestamp": timestamp,
                             "snapshot": image_name
                         }
 
-                        # ==========================================
-                        # BROADCAST LIVE ALERT
-                        # ==========================================
-                        try:
+                        asyncio.create_task(
+                            manager.broadcast(alert_data)
+                        )
 
-                            asyncio.create_task(
-                                manager.broadcast(alert_data)
-                            )
-
-                        except Exception as e:
-
-                            print("Broadcast failed:", e)
-
-        # ==========================================
-        # CONVERT FRAME TO JPEG
-        # ==========================================
         ret, buffer = cv2.imencode(
             ".jpg",
             annotated_frame
@@ -346,9 +239,6 @@ def generate_frames():
 
         frame_bytes = buffer.tobytes()
 
-        # ==========================================
-        # MJPEG STREAM
-        # ==========================================
         yield (
             b'--frame\r\n'
             b'Content-Type: image/jpeg\r\n\r\n' +
@@ -356,22 +246,20 @@ def generate_frames():
             b'\r\n'
         )
 
-# ==========================================
-# LIVE VIDEO STREAM API
-# ==========================================
+# =========================================================
+# VIDEO FEED
+# =========================================================
 @app.get("/video_feed")
 def video_feed():
 
     return StreamingResponse(
         generate_frames(),
-        media_type=(
-            "multipart/x-mixed-replace; boundary=frame"
-        )
+        media_type="multipart/x-mixed-replace; boundary=frame"
     )
 
-# ==========================================
-# CLEANUP CAMERA
-# ==========================================
+# =========================================================
+# CLEANUP
+# =========================================================
 @app.on_event("shutdown")
 def shutdown_event():
 
