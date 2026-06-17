@@ -19,6 +19,10 @@ build/
 # Environment files
 .env
 
+# Snapshots
+snapshots/
+snapshots
+
 # OS
 .DS_Store
 Thumbs.db

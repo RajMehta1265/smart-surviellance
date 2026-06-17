@@ -1,4 +1,4 @@
-require("dotenv").config();
+require("dotenv").config(); // reload with key
 
 const express = require("express");
 const cors = require("cors");
@@ -11,6 +11,9 @@ const authRoutes =
 
 const alertRoutes =
     require("./routes/alertRoutes");
+
+const aiRoutes =
+    require("./routes/aiRoutes");
 
 const app = express();
 
@@ -56,6 +59,11 @@ app.use(
 app.use(
     "/api/alerts",
     alertRoutes
+);
+
+app.use(
+    "/api/ai",
+    aiRoutes
 );
 
 // ======================================================
