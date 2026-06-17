@@ -51,6 +51,46 @@ pool.getConnection()
 // ROUTES
 // ======================================================
 
+app.get("/api/diagnose", async (req, res) => {
+    const envVars = {
+        DB_HOST: process.env.DB_HOST,
+        DB_PORT: process.env.DB_PORT,
+        DB_NAME: process.env.DB_NAME,
+        DB_USER: process.env.DB_USER,
+        DB_PASSWORD_EXISTS: !!process.env.DB_PASSWORD,
+        GROQ_API_KEY_EXISTS: !!process.env.GROQ_API_KEY,
+        PORT: process.env.PORT,
+        NODE_ENV: process.env.NODE_ENV
+    };
+
+    let dbStatus = "Unknown";
+    let dbError = null;
+
+    try {
+        const conn = await pool.getConnection();
+        dbStatus = "Connected successfully";
+        const [rows] = await conn.query("SHOW TABLES");
+        dbStatus += `. Tables: ${JSON.stringify(rows.map(r => Object.values(r)[0]))}`;
+        conn.release();
+    } catch (err) {
+        dbStatus = "Failed to connect";
+        dbError = {
+            message: err.message,
+            code: err.code,
+            errno: err.errno,
+            sqlState: err.sqlState,
+            stack: err.stack
+        };
+    }
+
+    res.json({
+        success: true,
+        envVars,
+        dbStatus,
+        dbError
+    });
+});
+
 app.use(
     "/api/auth",
     authRoutes
