@@ -73,7 +73,7 @@ const getAlerts = async (req, res) => {
 
         conn = await pool.getConnection();
 
-        const alerts = await conn.query(
+        const [alerts] = await conn.query(
             `
             SELECT *
             FROM alerts

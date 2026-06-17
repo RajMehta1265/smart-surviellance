@@ -108,7 +108,7 @@ const describeIntruder = async (req, res) => {
         conn = await pool.getConnection();
 
         // Fetch all alert frames for this intruder
-        const alerts = await conn.query(
+        const [alerts] = await conn.query(
             `
             SELECT * FROM alerts
             WHERE person_id = ?
@@ -239,7 +239,7 @@ const chatSecurity = async (req, res) => {
             params = [person_id];
         }
 
-        const alerts = await conn.query(query, params);
+        const [alerts] = await conn.query(query, params);
 
         // Format database context for LLM
         let databaseContext = "No intrusion events recorded in database.";
@@ -315,7 +315,7 @@ const getSurveillanceAlerts = async (req, res) => {
     let conn;
     try {
         conn = await pool.getConnection();
-        const alerts = await conn.query(
+        const [alerts] = await conn.query(
             `
             SELECT * FROM alerts
             ORDER BY id DESC

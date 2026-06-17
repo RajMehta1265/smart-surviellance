@@ -1,7 +1,7 @@
-const mariadb = require("mariadb");
+const mysql = require("mysql2/promise");
 require("dotenv").config();
 
-const pool = mariadb.createPool({
+const pool = mysql.createPool({
     host: process.env.DB_HOST,
     port: Number(process.env.DB_PORT),
     user: process.env.DB_USER,
@@ -9,6 +9,7 @@ const pool = mariadb.createPool({
     database: process.env.DB_NAME,
     connectionLimit: 5
 });
+console.log("Database Pool Created:", typeof pool, typeof pool?.getConnection);
 
 const initializeDB = async () => {
     let conn;
@@ -40,7 +41,7 @@ const initializeDB = async () => {
         `);
         
         // Seed mock alerts if empty
-        const countRes = await conn.query("SELECT COUNT(*) as count FROM alerts");
+        const [countRes] = await conn.query("SELECT COUNT(*) as count FROM alerts");
         if (countRes && countRes[0] && Number(countRes[0].count) === 0) {
             console.log("🌱 Seeding mock surveillance alerts for demo...");
             const now = new Date();
