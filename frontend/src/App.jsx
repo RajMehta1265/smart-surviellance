@@ -58,7 +58,9 @@ function renderMarkdown(text) {
   return <div className="md-root">{elements}</div>;
 }
 
-const BACKEND_URL = "http://localhost:5001";
+const BACKEND_URL = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
+  ? "http://localhost:5001"
+  : `${window.location.origin}/_/backend`;
 const AI_SERVICE_URL = "http://localhost:8000";
 const WS_URL = "ws://localhost:8000/ws";
 

@@ -187,8 +187,9 @@ def _inference_worker():
                         # Fire-and-forget HTTP alert to Node backend
                         def _send_alert(ts, lbl, conf, tid, img):
                             try:
+                                backend_host = os.getenv("BACKEND_URL", "http://localhost:5001")
                                 requests.post(
-                                    "http://localhost:5001/api/alerts",
+                                    f"{backend_host}/api/alerts",
                                     json={
                                         "label": lbl,
                                         "confidence": round(conf, 2),
